@@ -1,9 +1,13 @@
+import os
+import sys
+sys.path.insert(0, '..')
+
 import vqgan as vq
 from PIL import Image
 import torch
 import numpy as np
 
-img_path='og1.jpg'
+img_path='../assets/og1.jpg'
 
 img = Image.open(img_path).convert('RGB')
 img = vq.stage1_transform(is_train=False)(img)
@@ -21,4 +25,4 @@ x = x.permute(1,2,0).detach().cpu().numpy()
 x = (255*x).astype(np.uint8)
 x = Image.fromarray(x)
 
-x.save("rec1.jpg")
+x.save("../assets/rec1.jpg")

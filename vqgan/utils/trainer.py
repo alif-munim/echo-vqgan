@@ -86,7 +86,7 @@ class VQGANTrainer(nn.Module):
             mixed_precision=mixed_precision,
             gradient_accumulation_steps=grad_accum_steps, 
             log_with="tensorboard",
-            logging_dir=log_dir,
+            project_dir=log_dir,
         )
 
         self.vqvae = vqvae
