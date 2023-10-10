@@ -42,7 +42,7 @@ vit_s_vqgan_config = {
     'embed_dim'   :32,
     'beta'        :0.25,
     'enc':{
-        'image_size':256, 
+        'image_size':112, 
         'patch_size':8, 
         'dim':512, 
         'depth':8, 
@@ -53,7 +53,7 @@ vit_s_vqgan_config = {
         'dropout':0.0,
     }, 
     'dec':{
-        'image_size':256, 
+        'image_size':112, 
         'patch_size':8, 
         'dim':512, 
         'depth':8, 

@@ -1,13 +1,15 @@
 import PIL
 import torchvision.transforms as T
+from torchvision.transforms import InterpolationMode
 
 def pair(t):
     return t if isinstance(t, tuple) else (t, t)
 
-def stage1_transform(img_size=256, is_train=True, scale=0.8):
+def stage1_transform(img_size=112, is_train=True, scale=0.8):
     resize = pair(int(img_size/scale))
     t = []
-    t.append(T.Resize(resize, interpolation=PIL.Image.BICUBIC))
+    # t.append(T.Resize(resize, interpolation=PIL.Image.BICUBIC))
+    # t.append(T.Resize(resize, interpolation=InterpolationMode.NEAREST))
     if is_train:
         t.append(T.RandomCrop(img_size))
         t.append(T.RandomHorizontalFlip(p=0.5))
@@ -19,7 +21,7 @@ def stage1_transform(img_size=256, is_train=True, scale=0.8):
     
     return T.Compose(t)
         
-def stage2_transform(img_size=256, is_train=True, scale=0.8):
+def stage2_transform(img_size=112, is_train=True, scale=0.8):
     resize = pair(int(img_size/scale))
     t = []
     t.append(T.Resize(resize, interpolation=PIL.Image.BICUBIC))

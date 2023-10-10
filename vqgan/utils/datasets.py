@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 from PIL import Image
 from datasets import load_dataset
+from skimage.util import random_noise
 
     
 class LaionV2:
@@ -59,6 +60,10 @@ class ImageNet:
 
 class EchoNet:
     def __init__(self, root_dir, image_list, split='train', transform=None):
+        self.gauss_var = 0.075
+        self.speckle_var = 0.2
+        self.sp_amount = 0.001
+        
         self.dataset = pd.read_csv(image_list)
         self.root_dir = root_dir
         self.transform = transform
@@ -70,10 +75,22 @@ class EchoNet:
     def __getitem__(self, idx):
         img_path = os.path.join(self.root_dir, self.dataset.iloc[idx, 0])
         img = Image.open(img_path)
-        caption = self.default_caption
+        
+        noised_arr = np.asarray(img)
+        noised_arr = random_noise(noised_arr, mode='gaussian', var=self.gauss_var)
+        noised_arr = random_noise(noised_arr, mode='speckle', var=self.speckle_var)
+        noised_arr = random_noise(noised_arr, mode='s&p', amount=self.sp_amount)
+        noised_img = Image.fromarray((noised_arr*255).astype(np.uint8))
+        # caption = self.default_caption
+        
+        # Debug statements
+        # noised_img.save(f'/scratch/alif/echo-vqgan/test/noisy_{self.dataset.iloc[idx, 0]}.jpg')
+        # img.save(f'/scratch/alif/echo-vqgan/test/clear_{self.dataset.iloc[idx, 0]}.jpg')
+        # print(f'Saved {self.dataset.iloc[idx, 0]} noisy, clean images.')
         
         if self.transform is not None:
             img = self.transform(img)
+            noised_img = self.transform(noised_img)
             
-        return img, caption
+        return img, noised_img
     

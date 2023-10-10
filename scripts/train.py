@@ -10,8 +10,12 @@ root_dir = '/scratch/alif/EchoNet-Dynamic/'
 data_path = os.path.join(root_dir, 'Images')
 annotations = os.path.join(root_dir, 'image_list.csv')
 
-transform = vq.stage1_transform(img_size=256, is_train=True, scale=0.66)
-dataset = datasets.EchoNet(root_dir=data_path, image_list=annotations, transform=transform)
+transform = vq.stage1_transform(img_size=112, is_train=True, scale=0.66)
+dataset = datasets.EchoNet(
+            root_dir=data_path, 
+            image_list=annotations, 
+            transform=transform
+)
 
 model = vq.create_model(arch='vqgan', version='vit-s-vqgan', pretrained=False)
 

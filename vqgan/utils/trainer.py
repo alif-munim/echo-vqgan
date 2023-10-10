@@ -16,7 +16,9 @@ from einops import rearrange
 from paintmind.optim import Lion
 from paintmind.utils.lr_scheduler import build_scheduler
 from paintmind.stage1.discriminator import NLayerDiscriminator
-
+import torchvision.transforms as T
+from skimage.util import random_noise
+from PIL import Image
 
 def requires_grad(model, flag=True):
     for p in model.parameters():
@@ -172,13 +174,47 @@ class VQGANTrainer(nn.Module):
         self.steps = 0
         self.accelerator.init_trackers("vqgan")
         self.log = Log()
+        
+        # gauss_var = 0.075
+        # speckle_var = 0.2
+        # sp_amount = 0.001
+        # transform = T.ToPILImage()
+        
+        
         for epoch in range(self.num_epoch):
             with tqdm(self.train_dl, dynamic_ncols=True, disable=not self.accelerator.is_main_process) as train_dl:
+                
+                batch_counter = 0
                 for batch in train_dl:
-                    if isinstance(batch, tuple) or isinstance(batch, list):
-                        img = batch[0]
-                    else:
-                        img = batch
+                    
+                    img = batch[0]
+                    noised_img = batch[1]
+                    
+                    # if isinstance(batch, tuple) or isinstance(batch, list):
+                    #     img = batch[0]
+                    # else:
+                    #     img = batch
+                        
+                    # Debug
+#                     print("batch: ", img.shape)                    
+                    
+#                     img_counter = 0
+#                     for image in img:
+#                         # Convert image to black and white, add noise                        
+#                         noisy_img = transform(image)
+#                         noised_arr = np.asarray(noisy_img)
+#                         noised_arr = random_noise(noised_arr, mode='gaussian', var=gauss_var)
+#                         noised_arr = random_noise(noised_arr, mode='speckle', var=speckle_var)
+#                         noised_arr = random_noise(noised_arr, mode='s&p', amount=sp_amount)
+#                         noised_img = Image.fromarray((noised_arr*255).astype(np.uint8))
+
+#                         # Save images for verification
+#                         img_counter += 1
+#                         image = transform(image)
+#                         noised_img.save(f'/scratch/alif/echo-vqgan/test/noisy_b{batch_counter}_n{img_counter}.jpg')
+#                         image.save(f'/scratch/alif/echo-vqgan/test/clear_b{batch_counter}_n{img_counter}.jpg')
+#                         print(f'Saved {img_counter} noisy, clean images.')
+#                     batch_counter += 1
                     
                     # discriminator part
                     requires_grad(self.vqvae, False)
