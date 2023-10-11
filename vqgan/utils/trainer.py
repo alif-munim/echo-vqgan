@@ -190,38 +190,12 @@ class VQGANTrainer(nn.Module):
                     img = batch[0]
                     noised_img = batch[1]
                     
-                    # if isinstance(batch, tuple) or isinstance(batch, list):
-                    #     img = batch[0]
-                    # else:
-                    #     img = batch
-                        
-                    # Debug
-#                     print("batch: ", img.shape)                    
-                    
-#                     img_counter = 0
-#                     for image in img:
-#                         # Convert image to black and white, add noise                        
-#                         noisy_img = transform(image)
-#                         noised_arr = np.asarray(noisy_img)
-#                         noised_arr = random_noise(noised_arr, mode='gaussian', var=gauss_var)
-#                         noised_arr = random_noise(noised_arr, mode='speckle', var=speckle_var)
-#                         noised_arr = random_noise(noised_arr, mode='s&p', amount=sp_amount)
-#                         noised_img = Image.fromarray((noised_arr*255).astype(np.uint8))
-
-#                         # Save images for verification
-#                         img_counter += 1
-#                         image = transform(image)
-#                         noised_img.save(f'/scratch/alif/echo-vqgan/test/noisy_b{batch_counter}_n{img_counter}.jpg')
-#                         image.save(f'/scratch/alif/echo-vqgan/test/clear_b{batch_counter}_n{img_counter}.jpg')
-#                         print(f'Saved {img_counter} noisy, clean images.')
-#                     batch_counter += 1
-                    
                     # discriminator part
                     requires_grad(self.vqvae, False)
                     requires_grad(self.discr, True)
                     with self.accelerator.accumulate(self.discr):
                         with self.accelerator.autocast():
-                            rec, codebook_loss = self.vqvae(img)
+                            rec, codebook_loss = self.vqvae(noised_img)
         
                             fake_pred = self.discr(rec)
                             real_pred = self.discr(img)
@@ -243,7 +217,7 @@ class VQGANTrainer(nn.Module):
                     requires_grad(self.discr, False)
                     with self.accelerator.accumulate(self.vqvae):
                         with self.accelerator.autocast():
-                            rec, codebook_loss = self.vqvae(img)
+                            rec, codebook_loss = self.vqvae(noised_img)
                             # reconstruction loss
                             rec_loss = F.l1_loss(rec, img) + F.mse_loss(rec, img)
                             # perception loss
@@ -459,12 +433,12 @@ class PaintMindTrainer(nn.Module):
         self.model.eval()
         with tqdm(self.valid_dl, dynamic_ncols=True, disable=not self.accelerator.is_main_process) as valid_dl:
             for i, batch in enumerate(valid_dl):
-                imgs, text = batch
+                imgs, noised_imgs = batch
 
                 with self.accelerator.autocast():
                     gens = self.model.generate(text=text, timesteps=18, temperature=1.0, topk=5, save_interval=2)
 
-                imgs_and_gens = [imgs.cpu()] + gens
+                imgs_and_gens = [noised_imgs.cpu()] + gens
                 imgs_and_gens = torch.cat(imgs_and_gens, dim=0)
                 imgs_and_gens = imgs_and_gens.detach().cpu().float()
                 
