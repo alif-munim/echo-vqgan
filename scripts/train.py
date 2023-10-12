@@ -43,5 +43,5 @@ trainer = vq.VQGANTrainer(
     checkpoint_path          = None
 )
 
-with torch.autograd.set_detect_anomaly(True):
-    trainer.train()
+# with torch.autograd.set_detect_anomaly(True):
+trainer.train()
