@@ -4,7 +4,7 @@ sys.path.insert(0, '..')
 
 import vqgan as vq
 from vqgan.utils import datasets
-
+import torch
 
 root_dir = '/scratch/alif/EchoNet-Dynamic/'
 data_path = os.path.join(root_dir, 'Images')
@@ -29,15 +29,19 @@ trainer = vq.VQGANTrainer(
     warmup_steps             = 50000,
     warmup_lr_init           = 1e-6,
     decay_steps              = 100000,
-    batch_size               = 16,
+    batch_size               = 128,
     num_workers              = 2,
     pin_memory               = True,
     grad_accum_steps         = 8,
     mixed_precision          = 'bf16',
     max_grad_norm            = 1.0,
-    save_every               = 5000,
-    sample_every             = 5000,
-    result_folder            = "your/result/folder",
-    log_dir                  = "your/log/dir",
+    save_every               = 330,
+    sample_every             = 330,
+    result_folder            = "results",
+    log_dir                  = "logs",
+    # checkpoint_path          = "/scratch/alif/echo-vqgan/scripts/results/models/vit_vq_step_330.pt"
+    checkpoint_path          = None
 )
-trainer.train()
+
+with torch.autograd.set_detect_anomaly(True):
+    trainer.train()

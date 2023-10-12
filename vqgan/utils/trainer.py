@@ -20,6 +20,9 @@ import torchvision.transforms as T
 from skimage.util import random_noise
 from PIL import Image
 
+def my_relu(x):
+    return torch.maximum(x, torch.zeros_like(x))
+
 def requires_grad(model, flag=True):
     for p in model.parameters():
         p.requires_grad = flag
@@ -28,6 +31,8 @@ def requires_grad(model, flag=True):
 def hinge_d_loss(fake, real):
     loss_fake = torch.mean(F.relu(1. + fake))
     loss_real = torch.mean(F.relu(1. - real))
+    # loss_fake = torch.mean(my_relu(1. + fake))
+    # loss_real = torch.mean(my_relu(1. - real))
     d_loss = 0.5 * (loss_real + loss_fake)
     return d_loss
 
@@ -82,18 +87,27 @@ class VQGANTrainer(nn.Module):
         sample_every=1000,
         result_folder=None,
         log_dir="./log",
+        logging="wandb",
+        checkpoint_path=None
     ):
         super().__init__()
+        
+        # DDP broadcast buffers needs to be set to false, otherwise
+        # RuntimeError: one of the variables needed for gradient computation has been modified by an inplace operation
         self.accelerator = Accelerator(
             mixed_precision=mixed_precision,
             gradient_accumulation_steps=grad_accum_steps, 
-            log_with="tensorboard",
+            log_with=logging,
             project_dir=log_dir,
+            kwargs_handlers=[DistributedDataParallelKwargs(broadcast_buffers=False)]
         )
 
         self.vqvae = vqvae
+        if checkpoint_path is not None:
+            vqvae.load_state_dict(torch.load(checkpoint_path))
         
-        self.discr = NLayerDiscriminator(input_nc=3, ndf=64, n_layers=3)
+        # Reduce number of channels from 3 to 1
+        self.discr = NLayerDiscriminator(input_nc=1, ndf=64, n_layers=3)
         
         train_size = len(dataset) - valid_size
         self.train_ds, self.valid_ds = random_split(dataset, [train_size, valid_size], generator=torch.Generator().manual_seed(42))
@@ -133,6 +147,8 @@ class VQGANTrainer(nn.Module):
             self.train_dl,
             self.valid_dl
         )
+        
+        
         
         self.num_epoch = num_epoch
         self.save_every = save_every
@@ -196,19 +212,20 @@ class VQGANTrainer(nn.Module):
                     with self.accelerator.accumulate(self.discr):
                         with self.accelerator.autocast():
                             rec, codebook_loss = self.vqvae(noised_img)
-        
+                            
                             fake_pred = self.discr(rec)
                             real_pred = self.discr(img)
                             
                             gp = self.calculate_gradient_penalty(img, rec)
-                            d_loss = self.d_loss(fake_pred, real_pred) + gp
-                            
-                        self.accelerator.backward(d_loss)
+                            d_loss = self.d_loss(fake_pred, real_pred) + gp                        
+                        
+                        self.d_optim.zero_grad()
+                        self.accelerator.backward(d_loss)                      
+                        
                         if self.accelerator.sync_gradients:
                             self.accelerator.clip_grad_norm_(self.discr.parameters(), self.max_grad_norm)
                         self.d_optim.step()
                         self.d_sched.step_update(self.steps)
-                        self.d_optim.zero_grad()
                         
                         self.log.update({'d loss':d_loss.item(), 'd lr':self.d_optim.param_groups[0]['lr']})
                         
@@ -227,12 +244,13 @@ class VQGANTrainer(nn.Module):
                             # combine
                             loss = codebook_loss + rec_loss + per_loss + self.d_weight * g_loss
                         
-                        self.accelerator.backward(loss)
+                        self.g_optim.zero_grad()   
+                        self.accelerator.backward(loss)                        
+                        
                         if self.accelerator.sync_gradients:
                             self.accelerator.clip_grad_norm_(self.vqvae.parameters(), self.max_grad_norm)
                         self.g_optim.step()
                         self.g_sched.step_update(self.steps)
-                        self.g_optim.zero_grad()   
 
                     self.steps += 1
                     self.log.update({'rec loss':rec_loss.item(), 'per loss':per_loss.item(), 'g loss':g_loss.item(), 'g lr':self.g_optim.param_groups[0]['lr']})
@@ -278,13 +296,11 @@ class VQGANTrainer(nn.Module):
         self.vqvae.eval()
         with tqdm(self.valid_dl, dynamic_ncols=True, disable=not self.accelerator.is_local_main_process) as valid_dl:
             for i, batch in enumerate(valid_dl):
-                if isinstance(batch, tuple) or isinstance(batch, list):
-                    img = batch[0]
-                else:
-                    img = batch
+                img = batch[0]
+                noised_img = batch[1]
                 
-                rec, _ = self.vqvae(img)
-                imgs_and_recs = torch.stack((img, rec), dim=0)
+                rec, _ = self.vqvae(noised_img)
+                imgs_and_recs = torch.stack((noised_img, rec), dim=0)
                 imgs_and_recs = rearrange(imgs_and_recs, 'r b ... -> (b r) ...')
                 imgs_and_recs = imgs_and_recs.detach().cpu().float()
                 
@@ -336,8 +352,8 @@ class PaintMindTrainer(nn.Module):
         train_size = len(dataset) - valid_size
         self.train_ds, self.valid_ds = random_split(dataset, [train_size, valid_size], generator=torch.Generator().manual_seed(42))
         
-        self.train_dl = DataLoader(self.train_ds, batch_size=batch_size, shuffle=True, num_workers=num_workers, pin_memory=pin_memory)
-        self.valid_dl = DataLoader(self.valid_ds, batch_size=6, shuffle=False, num_workers=num_workers, pin_memory=pin_memory)
+        self.train_dl = DataLoader(self.train_ds, batch_size=batch_size, shuffle=True, num_workers=num_workers, pin_memory=pin_memory,  drop_last=True)
+        self.valid_dl = DataLoader(self.valid_ds, batch_size=6, shuffle=False, num_workers=num_workers, pin_memory=pin_memory,  drop_last=True)
         
         self.model = model
         

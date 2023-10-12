@@ -7,6 +7,7 @@ import pandas as pd
 from PIL import Image
 from datasets import load_dataset
 from skimage.util import random_noise
+import random
 
     
 class LaionV2:
@@ -60,11 +61,13 @@ class ImageNet:
 
 class EchoNet:
     def __init__(self, root_dir, image_list, split='train', transform=None):
-        self.gauss_var = 0.075
-        self.speckle_var = 0.2
+        self.gauss_var = 0.09
+        self.speckle_var = 0.5625
         self.sp_amount = 0.001
         
-        self.dataset = pd.read_csv(image_list)
+        self.dataset = pd.read_csv(image_list, 
+                                   nrows=1000 # take a smaller chunk to test epoch and inplace operations
+        )
         self.root_dir = root_dir
         self.transform = transform
         self.default_caption = "An echocardiogram image."
@@ -73,14 +76,22 @@ class EchoNet:
         return len(self.dataset)
         
     def __getitem__(self, idx):
+        gauss_var = random.uniform(0.00, 0.0225)
+        speckle_var = random.uniform(0.00, 0.5625)
+        sp_amount = random.uniform(0.00, 0.02)
+        
         img_path = os.path.join(self.root_dir, self.dataset.iloc[idx, 0])
         img = Image.open(img_path)
         
         noised_arr = np.asarray(img)
-        noised_arr = random_noise(noised_arr, mode='gaussian', var=self.gauss_var)
-        noised_arr = random_noise(noised_arr, mode='speckle', var=self.speckle_var)
-        noised_arr = random_noise(noised_arr, mode='s&p', amount=self.sp_amount)
+        noised_arr = random_noise(noised_arr, mode='gaussian', var=gauss_var)
+        noised_arr = random_noise(noised_arr, mode='speckle', var=speckle_var)
+        noised_arr = random_noise(noised_arr, mode='s&p', amount=sp_amount)
         noised_img = Image.fromarray((noised_arr*255).astype(np.uint8))
+        
+        noised_img = noised_img.convert('L')
+        img = img.convert('L')
+        
         # caption = self.default_caption
         
         # Debug statements
