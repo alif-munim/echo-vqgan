@@ -88,6 +88,7 @@ class VQGANTrainer(nn.Module):
         result_folder=None,
         log_dir="./log",
         logging="wandb",
+        mode="grayscale",
         checkpoint_path=None
     ):
         super().__init__()
@@ -106,8 +107,12 @@ class VQGANTrainer(nn.Module):
         if checkpoint_path is not None:
             vqvae.load_state_dict(torch.load(checkpoint_path))
         
-        # Reduce number of channels from 3 to 1
-        self.discr = NLayerDiscriminator(input_nc=1, ndf=64, n_layers=3)
+        self.mode = mode
+        if self.mode == "rgb":
+            self.discr = NLayerDiscriminator(input_nc=3, ndf=64, n_layers=3)
+        else:
+            # Reduce number of channels from 3 to 1
+            self.discr = NLayerDiscriminator(input_nc=1, ndf=64, n_layers=3)
         
         train_size = len(dataset) - valid_size
         self.train_ds, self.valid_ds = random_split(dataset, [train_size, valid_size], generator=torch.Generator().manual_seed(42))
@@ -174,6 +179,9 @@ class VQGANTrainer(nn.Module):
         
         interpolated = eta * real_images + ((1 - eta) * fake_images)
         interpolated = Variable(interpolated, requires_grad=True)
+        
+        # print("interpolated: ", torch.isnan(interpolated).any(), torch.isinf(interpolated).any())
+        
         prob_interpolated = self.discr(interpolated)
         
         gradients = torch.autograd.grad(
@@ -213,6 +221,26 @@ class VQGANTrainer(nn.Module):
                         with self.accelerator.autocast():
                             rec, codebook_loss = self.vqvae(noised_img)
                             
+                            # print("sync grad: ", self.accelerator.sync_gradients)
+                            # print("img: ", torch.isnan(img).any(), torch.isinf(img).any())
+                            # print("rec: ", torch.isnan(rec).any(), torch.isinf(rec).any())
+                            
+#                             if torch.isnan(rec).any() or torch.isinf(rec).any():
+#                                 print("noised_img: ", noised_img)
+#                                 print("noised_img unique: ",torch.unique(noised_img))
+#                                 print("rec: ", rec)
+#                                 print("rec unique: ", torch.unique(rec))
+#                                 print("loss: ", codebook_loss)
+#                                 print("loss unique: ", torch.unique(codebook_loss))
+                                
+#                                 print("modules: ",self.vqvae.modules())
+#                                 for i, layer in enumerate(self.vqvae.modules()):
+#                                     output, _ = layer(noised_img)  # assuming `input` is the input tensor to your model
+#                                     if torch.isnan(output).any():
+#                                         print(f"NaN values found at layer {i}: {layer}")
+                                
+                                
+                            
                             fake_pred = self.discr(rec)
                             real_pred = self.discr(img)
                             
@@ -222,8 +250,8 @@ class VQGANTrainer(nn.Module):
                         self.d_optim.zero_grad()
                         self.accelerator.backward(d_loss)                      
                         
-                        if self.accelerator.sync_gradients:
-                            self.accelerator.clip_grad_norm_(self.discr.parameters(), self.max_grad_norm)
+                        # if self.accelerator.sync_gradients:
+                        self.accelerator.clip_grad_norm_(self.discr.parameters(), self.max_grad_norm)
                         self.d_optim.step()
                         self.d_sched.step_update(self.steps)
                         
@@ -247,8 +275,8 @@ class VQGANTrainer(nn.Module):
                         self.g_optim.zero_grad()   
                         self.accelerator.backward(loss)                        
                         
-                        if self.accelerator.sync_gradients:
-                            self.accelerator.clip_grad_norm_(self.vqvae.parameters(), self.max_grad_norm)
+                        # if self.accelerator.sync_gradients:
+                        self.accelerator.clip_grad_norm_(self.vqvae.parameters(), self.max_grad_norm)
                         self.g_optim.step()
                         self.g_sched.step_update(self.steps)
 
@@ -289,7 +317,7 @@ class VQGANTrainer(nn.Module):
     def save(self):
         self.accelerator.wait_for_everyone()
         state_dict = self.accelerator.unwrap_model(self.vqvae).state_dict()
-        self.accelerator.save(state_dict, os.path.join(self.model_saved_dir, f'vit_vq_step_{self.steps}.pt'))
+        self.accelerator.save(state_dict, os.path.join(self.model_saved_dir, f'{self.mode}_vit_vq_step_{self.steps}.pt'))
                                                        
     @torch.no_grad()
     def evaluate(self):
@@ -305,7 +333,7 @@ class VQGANTrainer(nn.Module):
                 imgs_and_recs = imgs_and_recs.detach().cpu().float()
                 
                 grid = make_grid(imgs_and_recs, nrow=6, normalize=True, value_range=(-1, 1))
-                save_image(grid, os.path.join(self.image_saved_dir, f'step_{self.steps}_{i}.png'))
+                save_image(grid, os.path.join(self.image_saved_dir, f'{self.mode}_step_{self.steps}_{i}.png'))
         self.vqvae.train()
 
 

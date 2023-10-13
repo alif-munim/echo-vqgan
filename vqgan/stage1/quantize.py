@@ -16,8 +16,13 @@ class VectorQuantizer(nn.Module):
         self.embedding.weight.data.normal_()
 
     def forward(self, z):
+        
+        # print(f'z nan: {torch.isnan(z).any()}, z inf: {torch.isinf(z).any()}')
         z = l2norm(z)
+        # print(f'z l2norm: {torch.isnan(z).any()}, z l2norm: {torch.isinf(z).any()}')
         z_flattened = z.view(-1, self.e_dim)
+        # print(f'z_flattened nan: {torch.isnan(z_flattened).any()}, z_flattened inf: {torch.isinf(z_flattened).any()}')
+        
         embedd_norm = l2norm(self.embedding.weight)
         # distances from z to embeddings e_j (z - e)^2 = z^2 + e^2 - 2 e * z
 
@@ -28,6 +33,8 @@ class VectorQuantizer(nn.Module):
         encoding_indices = torch.argmin(d, dim=1).view(*z.shape[:-1])
         z_q = self.embedding(encoding_indices)
         z_q = l2norm(z_q)
+        
+        # print(f'z_q nan: {torch.isnan(z_q).any()}, z_q inf: {torch.isinf(z_q).any()}')
 
         # compute loss for embedding
         loss = self.beta * torch.mean((z_q.detach()-z)**2) + torch.mean((z_q-z.detach())**2)

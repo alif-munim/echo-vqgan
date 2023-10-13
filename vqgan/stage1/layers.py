@@ -52,9 +52,12 @@ class Layer(nn.Module):
         self.ffnet = SwiGLUFFNFused(in_features=dim, hidden_features=mlp_dim)
         
     def forward(self, x): 
+        # print(f'LAYER: initial x nan: {torch.isnan(x).any()}, initial x inf: {torch.isinf(x).any()}')
         x = self.attn1(self.norm1(x)) + x
+        # print(f'LAYER: after attn1, norm1 nan: {torch.isnan(x).any()}, after attn1, norm1 inf: {torch.isinf(x).any()}')
         x = self.ffnet(self.norm2(x)) + x
-
+        # print(f'LAYER: after ffnet, norm2 nan: {torch.isnan(x).any()}, after ffnet, norm2 inf: {torch.isinf(x).any()}')
+        
         return x
 
 
@@ -104,10 +107,14 @@ class Encoder(nn.Module):
             nn.init.constant_(m.weight, 1.0)
 
     def forward(self, x):
+        # print(f'ENCODER: initial x nan: {torch.isnan(x).any()}, encoder x inf: {torch.isinf(x).any()}')
         x = self.to_patch_embedding(x)
         x = x + self.position_embedding
+        # print(f'ENCODER: after pos emb nan: {torch.isnan(x).any()}, after pos emb inf: {torch.isinf(x).any()}')
         x = self.norm_pre(x)
+        # print(f'ENCODER: after norm nan: {torch.isnan(x).any()}, after norm inf: {torch.isinf(x).any()}')
         x = self.transformer(x)
+        # print(f'ENCODER: after transformer nan: {torch.isnan(x).any()}, after transformer inf: {torch.isinf(x).any()}')
         
         return x
  
@@ -143,10 +150,15 @@ class Decoder(nn.Module):
             nn.init.constant_(m.weight, 1.0)
     
     def forward(self, x):
+        # print(f'DECODER: initial x nan: {torch.isnan(x).any()}, decoder x inf: {torch.isinf(x).any()}')
         x = x + self.position_embedding
+        # print(f'DECODER: after pos emb nan: {torch.isnan(x).any()}, after pos emb inf: {torch.isinf(x).any()}')
         x = self.transformer(x)
+        # print(f'DECODER: after transformer nan: {torch.isnan(x).any()}, after transformer inf: {torch.isinf(x).any()}')
         x = self.norm(x)
+        # print(f'DECODER: after norm nan: {torch.isnan(x).any()}, after norm inf: {torch.isinf(x).any()}')
         x = self.proj(x)
+        # print(f'DECODER: after proj nan: {torch.isnan(x).any()}, after proj inf: {torch.isinf(x).any()}')
         x = rearrange(x, 'b (h w) (p1 p2 c) -> b c (h p1) (w p2)', h=self.image_size//self.patch_size, p1=self.patch_size, p2=self.patch_size)
         
         return x

@@ -60,13 +60,14 @@ class ImageNet:
     
 
 class EchoNet:
-    def __init__(self, root_dir, image_list, split='train', transform=None):
+    def __init__(self, root_dir, image_list, mode, split='train', transform=None):
+        self.mode = mode
         self.gauss_var = 0.09
         self.speckle_var = 0.5625
         self.sp_amount = 0.001
         
         self.dataset = pd.read_csv(image_list, 
-                                   nrows=1000 # take a smaller chunk to test epoch and inplace operations
+                                   # nrows=1000 # take a smaller chunk to test epoch and inplace operations
         )
         self.root_dir = root_dir
         self.transform = transform
@@ -89,8 +90,9 @@ class EchoNet:
         noised_arr = random_noise(noised_arr, mode='s&p', amount=sp_amount)
         noised_img = Image.fromarray((noised_arr*255).astype(np.uint8))
         
-        noised_img = noised_img.convert('L')
-        img = img.convert('L')
+        if self.mode == "grayscale":
+            noised_img = noised_img.convert('L')
+            img = img.convert('L')
         
         # caption = self.default_caption
         

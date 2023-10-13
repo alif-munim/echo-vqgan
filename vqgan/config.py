@@ -67,6 +67,63 @@ vit_s_vqgan_config = {
     },     
 }
 
+
+vit_s_vqgan_grayscale_config = {
+    'n_embed'     :8192,
+    'embed_dim'   :32,
+    'beta'        :0.25,
+    'enc':{
+        'image_size':112, 
+        'patch_size':8, 
+        'dim':512, 
+        'depth':8, 
+        'num_head':8, 
+        'mlp_dim':2048, 
+        'in_channels':1, 
+        'dim_head':64, 
+        'dropout':0.0,
+    }, 
+    'dec':{
+        'image_size':112, 
+        'patch_size':8, 
+        'dim':512, 
+        'depth':8, 
+        'num_head':8, 
+        'mlp_dim':2048,
+        'out_channels':1, 
+        'dim_head':64, 
+        'dropout':0.0,
+    },     
+}
+
+vit_s_vqgan_rgb_config = {
+    'n_embed'     :8192,
+    'embed_dim'   :32,
+    'beta'        :0.25,
+    'enc':{
+        'image_size':112, 
+        'patch_size':8, 
+        'dim':512, 
+        'depth':8, 
+        'num_head':8, 
+        'mlp_dim':2048, 
+        'in_channels':3,
+        'dim_head':64, 
+        'dropout':0.0,
+    }, 
+    'dec':{
+        'image_size':112, 
+        'patch_size':8, 
+        'dim':512, 
+        'depth':8, 
+        'num_head':8, 
+        'mlp_dim':2048, 
+        'out_channels':3,
+        'dim_head':64, 
+        'dropout':0.0,
+    },     
+}
+
 pipeline_v1_config = {
     'stage1'         :'vit-s-vqgan',
     't5'             :'t5-l',
@@ -80,6 +137,8 @@ pipeline_v1_config = {
 
 ver2cfg = {
     'vit-s-vqgan'  : vit_s_vqgan_config,
+    'vit-s-vqgan-rgb': vit_s_vqgan_rgb_config,
+    'vit-s-vqgan-grayscale': vit_s_vqgan_grayscale_config,
     'paintmindv1'  : pipeline_v1_config,
 }
         
