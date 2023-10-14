@@ -89,7 +89,8 @@ class VQGANTrainer(nn.Module):
         log_dir="./log",
         logging="wandb",
         mode="grayscale",
-        checkpoint_path=None
+        vqvae_checkpoint = None,
+        discr_checkpoint = None
     ):
         super().__init__()
         
@@ -104,15 +105,19 @@ class VQGANTrainer(nn.Module):
         )
 
         self.vqvae = vqvae
-        if checkpoint_path is not None:
-            vqvae.load_state_dict(torch.load(checkpoint_path))
-        
         self.mode = mode
+        
         if self.mode == "rgb":
             self.discr = NLayerDiscriminator(input_nc=3, ndf=64, n_layers=3)
         else:
             # Reduce number of channels from 3 to 1
             self.discr = NLayerDiscriminator(input_nc=1, ndf=64, n_layers=3)
+            
+        if vqvae_checkpoint is not None:
+            self.vqvae.load_state_dict(torch.load(vqvae_checkpoint))
+            
+        if discr_checkpoint is not None:
+            self.discr.load_state_dict(torch.load(discr_checkpoint))
         
         train_size = len(dataset) - valid_size
         self.train_ds, self.valid_ds = random_split(dataset, [train_size, valid_size], generator=torch.Generator().manual_seed(42))
@@ -316,8 +321,10 @@ class VQGANTrainer(nn.Module):
                     
     def save(self):
         self.accelerator.wait_for_everyone()
-        state_dict = self.accelerator.unwrap_model(self.vqvae).state_dict()
-        self.accelerator.save(state_dict, os.path.join(self.model_saved_dir, f'{self.mode}_vit_vq_step_{self.steps}.pt'))
+        vqvae_dict = self.accelerator.unwrap_model(self.vqvae).state_dict()
+        discr_dict = self.accelerator.unwrap_model(self.discr).state_dict()
+        self.accelerator.save(vqvae_dict, os.path.join(self.model_saved_dir, f'{self.mode}_vqvae_step_{self.steps}.pt'))
+        self.accelerator.save(discr_dict, os.path.join(self.model_saved_dir, f'{self.mode}_discr_step_{self.steps}.pt'))
                                                        
     @torch.no_grad()
     def evaluate(self):
