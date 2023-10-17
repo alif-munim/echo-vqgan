@@ -11,8 +11,8 @@ data_path = os.path.join(root_dir, 'Images')
 annotations = os.path.join(root_dir, 'image_list.csv')
 mode = "grayscale"
 
-vqvae_checkpoint = "/scratch/alif/echo-vqgan/scripts/results/models/grayscale_vit_vq_step_1650.pt"
-discr_checkpoint = None
+vqvae_checkpoint = "/scratch/alif/echo-vqgan/scripts/results/models/grayscale_vqvae_step_41580.pt"
+discr_checkpoint = "/scratch/alif/echo-vqgan/scripts/results/models/grayscale_discr_step_41580.pt"
 
 transform = vq.stage1_transform(img_size=112, is_train=True, scale=0.66)
 dataset = datasets.EchoNet(

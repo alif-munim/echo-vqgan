@@ -10,7 +10,9 @@ root_dir = '/scratch/alif/EchoNet-Dynamic/'
 data_path = os.path.join(root_dir, 'Images')
 annotations = os.path.join(root_dir, 'image_list.csv')
 mode = "rgb"
-checkpoint_path = "/scratch/alif/echo-vqgan/scripts/results/models/rgb_vit_vq_step_990.pt"
+
+vqvae_checkpoint = "/scratch/alif/echo-vqgan/scripts/results/models/vit_vq_step_11880.pt"
+discr_checkpoint = None
 
 transform = vq.stage1_transform(img_size=112, is_train=True, scale=0.66)
 dataset = datasets.EchoNet(
@@ -45,8 +47,8 @@ trainer = vq.VQGANTrainer(
     result_folder            = "results",
     log_dir                  = "logs",
     mode                     = mode,
-    checkpoint_path          = checkpoint_path,
-    # checkpoint_path          = None
+    vqvae_checkpoint         = vqvae_checkpoint,
+    discr_checkpoint         = discr_checkpoint
 )
 
 # with torch.autograd.set_detect_anomaly(True):
