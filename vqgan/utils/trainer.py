@@ -31,8 +31,6 @@ def requires_grad(model, flag=True):
 def hinge_d_loss(fake, real):
     loss_fake = torch.mean(F.relu(1. + fake))
     loss_real = torch.mean(F.relu(1. - real))
-    # loss_fake = torch.mean(my_relu(1. + fake))
-    # loss_real = torch.mean(my_relu(1. - real))
     d_loss = 0.5 * (loss_real + loss_fake)
     return d_loss
 
@@ -104,6 +102,9 @@ class VQGANTrainer(nn.Module):
             kwargs_handlers=[DistributedDataParallelKwargs(broadcast_buffers=False)]
         )
 
+        self.vqvae_checkpoint = vqvae_checkpoint
+        self.discr_checkpoint = discr_checkpoint
+        
         self.vqvae = vqvae
         self.mode = mode
         
@@ -114,10 +115,10 @@ class VQGANTrainer(nn.Module):
             self.discr = NLayerDiscriminator(input_nc=1, ndf=64, n_layers=3)
             
         if vqvae_checkpoint is not None:
-            self.vqvae.load_state_dict(torch.load(vqvae_checkpoint))
+            self.vqvae.load_state_dict(torch.load(self.vqvae_checkpoint))
             
         if discr_checkpoint is not None:
-            self.discr.load_state_dict(torch.load(discr_checkpoint))
+            self.discr.load_state_dict(torch.load(self.discr_checkpoint))
         
         train_size = len(dataset) - valid_size
         self.train_ds, self.valid_ds = random_split(dataset, [train_size, valid_size], generator=torch.Generator().manual_seed(42))
@@ -185,8 +186,6 @@ class VQGANTrainer(nn.Module):
         interpolated = eta * real_images + ((1 - eta) * fake_images)
         interpolated = Variable(interpolated, requires_grad=True)
         
-        # print("interpolated: ", torch.isnan(interpolated).any(), torch.isinf(interpolated).any())
-        
         prob_interpolated = self.discr(interpolated)
         
         gradients = torch.autograd.grad(
@@ -204,12 +203,6 @@ class VQGANTrainer(nn.Module):
         self.accelerator.init_trackers("vqgan")
         self.log = Log()
         
-        # gauss_var = 0.075
-        # speckle_var = 0.2
-        # sp_amount = 0.001
-        # transform = T.ToPILImage()
-        
-        
         for epoch in range(self.num_epoch):
             with tqdm(self.train_dl, dynamic_ncols=True, disable=not self.accelerator.is_main_process) as train_dl:
                 
@@ -224,27 +217,7 @@ class VQGANTrainer(nn.Module):
                     requires_grad(self.discr, True)
                     with self.accelerator.accumulate(self.discr):
                         with self.accelerator.autocast():
-                            rec, codebook_loss = self.vqvae(noised_img)
-                            
-                            # print("sync grad: ", self.accelerator.sync_gradients)
-                            # print("img: ", torch.isnan(img).any(), torch.isinf(img).any())
-                            # print("rec: ", torch.isnan(rec).any(), torch.isinf(rec).any())
-                            
-#                             if torch.isnan(rec).any() or torch.isinf(rec).any():
-#                                 print("noised_img: ", noised_img)
-#                                 print("noised_img unique: ",torch.unique(noised_img))
-#                                 print("rec: ", rec)
-#                                 print("rec unique: ", torch.unique(rec))
-#                                 print("loss: ", codebook_loss)
-#                                 print("loss unique: ", torch.unique(codebook_loss))
-                                
-#                                 print("modules: ",self.vqvae.modules())
-#                                 for i, layer in enumerate(self.vqvae.modules()):
-#                                     output, _ = layer(noised_img)  # assuming `input` is the input tensor to your model
-#                                     if torch.isnan(output).any():
-#                                         print(f"NaN values found at layer {i}: {layer}")
-                                
-                                
+                            rec, codebook_loss = self.vqvae(noised_img)                           
                             
                             fake_pred = self.discr(rec)
                             real_pred = self.discr(img)
@@ -320,14 +293,22 @@ class VQGANTrainer(nn.Module):
         print("Train finished!")
                     
     def save(self):
+        
+        step_offset = int(os.path.splitext(os.path.basename(self.vqvae_checkpoint))[0].split('_')[-1])
+        current_step = step_offset + self.steps
+        
         self.accelerator.wait_for_everyone()
         vqvae_dict = self.accelerator.unwrap_model(self.vqvae).state_dict()
         discr_dict = self.accelerator.unwrap_model(self.discr).state_dict()
-        self.accelerator.save(vqvae_dict, os.path.join(self.model_saved_dir, f'{self.mode}_vqvae_step_{self.steps}.pt'))
-        self.accelerator.save(discr_dict, os.path.join(self.model_saved_dir, f'{self.mode}_discr_step_{self.steps}.pt'))
+        self.accelerator.save(vqvae_dict, os.path.join(self.model_saved_dir, f'{self.mode}_vqvae_step_{current_step}.pt'))
+        self.accelerator.save(discr_dict, os.path.join(self.model_saved_dir, f'{self.mode}_discr_step_{current_step}.pt'))
                                                        
     @torch.no_grad()
     def evaluate(self):
+        
+        step_offset = int(os.path.splitext(os.path.basename(self.vqvae_checkpoint))[0].split('_')[-1])
+        current_step = step_offset + self.steps
+        
         self.vqvae.eval()
         with tqdm(self.valid_dl, dynamic_ncols=True, disable=not self.accelerator.is_local_main_process) as valid_dl:
             for i, batch in enumerate(valid_dl):
@@ -340,7 +321,7 @@ class VQGANTrainer(nn.Module):
                 imgs_and_recs = imgs_and_recs.detach().cpu().float()
                 
                 grid = make_grid(imgs_and_recs, nrow=6, normalize=True, value_range=(-1, 1))
-                save_image(grid, os.path.join(self.image_saved_dir, f'{self.mode}_step_{self.steps}_{i}.png'))
+                save_image(grid, os.path.join(self.image_saved_dir, f'{self.mode}_step_{current_step}_{i}.png'))
         self.vqvae.train()
 
 
